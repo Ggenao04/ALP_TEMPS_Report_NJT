@@ -3,8 +3,8 @@
 from tkinter import *
 from tkinter.ttk import *
 
-#email sendingCookeville, Tennessee
-import win32com.client
+#email sending
+#import win32com.client
 
 #reading the HTML
 from bs4 import BeautifulSoup
@@ -21,12 +21,22 @@ import threading
 from openpyxl import Workbook
 from openpyxl import load_workbook
 import os
+import sys
 
 #Disable warnings that come with unverified requests
 #(This line of code is for peace of mind, the 'verify=false' line within requests generates a warning
 #since this line is used every time it pulls info from a page in this program, it generates A LOT of warnings
 #and this just makes them not show up)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 
 # Scrape 'National Weather Service' to get current local temperatures and convert to Fahrenheit
 def get_outside_temp():
@@ -184,7 +194,7 @@ def generate_excel_file():
 
     pb['value'] = 0
 
-    wb = load_workbook(filename = "Automated ALP Temps TEMPLATE.xlsx")
+    wb = load_workbook(resource_path("Automated ALP Temps TEMPLATE.xlsx"))
 
     ws = wb["Sheet1"]
     all_data = get_alp45dp_temps()
@@ -240,6 +250,7 @@ def button1commands():
 
 def button2commands():
 
+    """
     todaye = datetime.now().strftime("%M/%D/%Y %H:%M %p")
     temp = get_outside_temp()
     year = datetime.now().strftime("%Y")
@@ -281,6 +292,7 @@ def button2commands():
 
     newmail.Attachments.Add(attach)
     newmail.Display()
+    """
 
 #--------------------------------------------------------------------------------------------------------------------------------
 # create the main window
@@ -307,5 +319,3 @@ pb.grid(row = 3, column = 0, padx = 10, pady = 10)
 
 #open window!
 window.mainloop()
-
-
