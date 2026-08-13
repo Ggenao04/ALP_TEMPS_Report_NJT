@@ -4,7 +4,7 @@ from tkinter import *
 from tkinter.ttk import *
 
 #email sending
-#import win32com.client
+import win32com.client as win32
 
 #reading the HTML
 from bs4 import BeautifulSoup
@@ -18,17 +18,19 @@ import urllib3
 import threading
 
 #Excel file generation
-from openpyxl import Workbook
 from openpyxl import load_workbook
 import os
 import sys
 
 #Disable warnings that come with unverified requests
-#(This line of code is for peace of mind, the 'verify=false' line within requests generates a warning
-#since this line is used every time it pulls info from a page in this program, it generates A LOT of warnings
-#and this just makes them not show up)
+"""
+(This line of code is for peace of mind, the 'verify=false' line within requests generates a warning
+since this line is used every time it pulls info from a page in this program, it generates A LOT of warnings
+and this just makes them not show up)
+"""
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Getting the absolute file path for the Excel file pre-packaging
 def resource_path(relative_path):
     try:
         base_path = sys._MEIPASS
@@ -37,10 +39,8 @@ def resource_path(relative_path):
 
     return os.path.join(base_path, relative_path)
 
-
 # Scrape 'National Weather Service' to get current local temperatures and convert to Fahrenheit
 def get_outside_temp():
-
 
     user_agent = "NJTransitWeatherApp (ggenaoperez@njtransit.com)"
     latitude = 40.74392
@@ -76,6 +76,7 @@ def get_date_and_time():
 def get_alp45dp_temps():
     today = datetime.now().strftime("%Y-%m-%d")
     all_data = []
+    concern_locos = []
 
     for loco in range(4500, 4535):
         url = f"https://njt.vehicledb.com/converterReport.php?loco={loco}&date={today}"
@@ -94,16 +95,20 @@ def get_alp45dp_temps():
         con1 = float(con1)
         con2 = float(con2)
 
+        if con1 >= 125 or con2 >= 125:
+            concern_locos.append(loco)
+
         all_data.append([loco, con1, con2])
 
     print('alp 45dp data collected')
 
-    return all_data
+    return all_data, concern_locos
 
 #alp 46 scrape
 def get_alp46_temps():
     today = datetime.now().strftime("%Y-%m-%d")
     all_data = []
+    concern_locos = []
 
     for loco in range(4600, 4629):
         url = f"https://njt.vehicledb.com/converterReport_ALP46.php?loco={loco}&date={today}"
@@ -122,16 +127,20 @@ def get_alp46_temps():
         con1 = float(con1)
         con2 = float(con2)
 
+        if con1 >= 125 or con2 >= 125:
+            concern_locos.append(loco)
+
         all_data.append([loco, con1, con2])
 
     print('alp 46 data collected')
 
-    return all_data
+    return all_data, concern_locos
 
 #alp 46a scrape
 def get_alp46a_temps():
     today = datetime.now().strftime("%Y-%m-%d")
     all_data = []
+    concern_locos = []
 
     for loco in range(4629, 4665):
         url = f"https://njt.vehicledb.com/converterReport_ALP46A.php?loco={loco}&date={today}"
@@ -150,11 +159,14 @@ def get_alp46a_temps():
         con1 = float(con1)
         con2 = float(con2)
 
+        if con1 >= 125 or con2 >= 125:
+            concern_locos.append(loco)
+
         all_data.append([loco, con1, con2])
 
     print('alp 46a data collected')
 
-    return all_data
+    return all_data, concern_locos
 
 #alp 45a scrape
 def get_alp45a_temps():
@@ -162,6 +174,7 @@ def get_alp45a_temps():
     today = datetime.now().strftime("%Y-%m-%d")
 
     all_data = []
+    concern_locos = []
 
     for loco in range(4535, 4561):
         url = f"https://njt.vehicledb.com/converterReport_alp45a.php?loco={loco}&date={today}"
@@ -180,66 +193,144 @@ def get_alp45a_temps():
         con1 = float(con1)
         con2 = float(con2)
 
+        if con1 >= 125 or con2 >= 125:
+            concern_locos.append(loco)
+
         all_data.append([loco, con1, con2])
 
     print('alp 45a data collected')
 
-    return all_data
+    return all_data, concern_locos
 
 #generate the Excel file
 def generate_excel_file():
     # generate ALP Temps Report Excel sheet
     # I tried to copy the format of the original as closely as possible, this is just a base sheet with formulas that is populated
     today = datetime.now().strftime("%m.%d.%y %H%M %p")
+    year = datetime.now().strftime("%Y")
+    all_concern_locos = []
 
-    pb['value'] = 0
+    pb['value'] = 0 #resets the progress bar to 0
 
+    # Loading the Excel template
     wb = load_workbook(resource_path("Automated ALP Temps TEMPLATE.xlsx"))
 
-    ws = wb["Sheet1"]
-    all_data = get_alp45dp_temps()
-    all_data.sort(reverse = True, key=lambda x: x[2])
+    ws = wb["Sheet1"] #Accessing 'Sheet1' from the template
+    all_data, concern_locos = get_alp45dp_temps() # Calling scraping function (line 81), storing returns
+    all_data.sort(reverse = True, key=lambda x: x[2]) #Sorting the list of locos (high to low) by temp of conv 2
+    #appending sorted data ([loco, conv1, conv2]) to 'Sheet1'
     for row in all_data:
         ws.append(row)
+    #storing any locos with conv temps above 125 for later use in email report
+    if concern_locos:
+        all_concern_locos.append(concern_locos)
 
-    pb['value'] += 20
+    pb['value'] += 20 #once the editing of the sheet is done, the progress bar is increased
 
     ws = wb["Sheet2"]
-    all_data = get_alp46_temps()
+    all_data, concern_locos = get_alp46_temps()
     all_data.sort(reverse=True, key=lambda x: x[2])
     for row in all_data:
         ws.append(row)
+    if concern_locos:
+        all_concern_locos.append(concern_locos)
 
     pb['value'] += 20
 
     ws = wb["Sheet3"]
-    all_data = get_alp46a_temps()
+    all_data, concern_locos = get_alp46a_temps()
     all_data.sort(reverse=True, key=lambda x: x[2])
     for row in all_data:
         ws.append(row)
+    if concern_locos:
+        all_concern_locos.append(concern_locos)
 
     pb['value'] += 20
 
     ws = wb["Sheet4"]
-    all_data = get_alp45a_temps()
+    all_data, concern_locos = get_alp45a_temps()
     all_data.sort(reverse=True, key=lambda x: x[2])
     for row in all_data:
         ws.append(row)
+    if concern_locos:
+        all_concern_locos.append(concern_locos)
 
     pb['value'] += 20
 
-    print('data appended \ngenerating excel file...')
-
-    year = datetime.now().strftime("%Y")
-
-    wb.save(f"F:\\42 ALPs Converter Temp\\NJTDB Temps\\{year}\\ALP TEMPS {today}.xlsx")
-
-    print('excel file generated')
-
-    pb['value'] += 20
     status.config(text="File Generated to F: Drive")
-
+    wb.save(f"F:\\42 ALPs Converter Temp\\NJTDB Temps\\{year}\\ALP TEMPS {today}.xlsx")
     os.startfile(f"F:\\42 ALPs Converter Temp\\NJTDB Temps\\{year}\\ALP TEMPS {today}.xlsx")
+    pb['value'] += 20
+
+    return all_concern_locos
+
+#Send the email report
+def send_email():
+
+    all_concern_locos = generate_excel_file()
+    today = datetime.now().strftime("%m.%d.%y %H%M %p")
+    year = datetime.now().strftime("%Y")
+    temp = get_outside_temp()
+
+    status.config(text="Please wait...")
+
+    if all_concern_locos:
+
+        outlook = win32.Dispatch("outlook.application")
+        mail = outlook.CreateItem(0)
+        mail.To = ("RailMechTechServices@njtransit.com; "
+                   "RailMechQA_QC@njtransit.com; "
+                   "RailWeekendDutyOfficer@njtransit.com; "
+                   "Rail_Mech_MMC_Locomotive_Shop_Foremen@njtransit.com; "
+                   "RailMechanicalDesk@njtransit.com; "
+                   "Rail_Mech_Dover_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Gladstone_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Great_Notch_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Hoboken_Yard_Group@njtransit.com; "
+                   "Rail_Mech_County_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Long_Branch_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Morrisville_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Port_Morris_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Raritan_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Atlantic_City_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Suffern_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Spring_Valley_Yard_Group@njtransit.com; "
+                   "Rail_Mech_New_York-SSYD_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Port_Jervis_Yard_Group@njtransit.com; "
+                   "Rail_Mech_Bay_Head_Yard_Group@njtransit.com")
+
+        mail.Cc = ("DDegennaro@njtransit.com; "
+                   "DRogust@njtransit.com; "
+                   "RBreen@njtransit.com; "
+                   "GKunchandy@njtransit.com; "
+                   "APanza@njtransit.com; "
+                   "MOrtland@njtransit.com; "
+                   "YPatel@njtransit.com")
+
+        mail.Subject = f"ALP Temps {today}"
+
+        mail.Body = (f"All, \n\nAttached is the ALP converter temperature report for {today} "
+                     f"The current outside temperature is {temp}°F. The unit(s) listed below have converter temperatures of 125°F or higher "
+                     f"and required immediate attention. All other converter readings are within normal operating limits."
+                     f"\n {all_concern_locos}"
+                     f"\n\n Regards,")
+        filepath = f"F:\\42 ALPs Converter Temp\\NJTDB Temps\\{year}\\ALP TEMPS {today}.xlsx"
+        mail.Attachments.Add(filepath)
+
+    else:
+
+        outlook = win32.Dispatch("outlook.application")
+        mail = outlook.CreateItem(0)
+        mail.To = "genaog04@gmail.com"
+        mail.Subject = "Test Email"
+        mail.Body = (f"All, \nAttached is the ALP converter temperature report for {today} "
+                     f"The current outside temperature is {temp}°F. All converter readings are within normal operating limits."
+                     f"\n Regards,")
+        filepath = f"F:\\42 ALPs Converter Temp\\NJTDB Temps\\{year}\\ALP TEMPS {today}.xlsx"
+        mail.Attachments.Add(filepath)
+
+    mail.Display()
+
 
 #--------------------------------------------------------------------------------------------------------------------------------
 #Button Commands
@@ -248,51 +339,11 @@ def button1commands():
     status.config(text="Generating..")
     threading.Thread(target=generate_excel_file).start()
 
+
 def button2commands():
 
-    """
-    todaye = datetime.now().strftime("%M/%D/%Y %H:%M %p")
-    temp = get_outside_temp()
-    year = datetime.now().strftime("%Y")
-    today = datetime.now().strftime("%Y.%m.%d %H%M %p")
-
-    ol = win32com.client.DispatchEx("Outlook.Application")
-    olmailitem = 0x0
-    newmail = ol.CreateItem(olmailitem)
-    newmail.Subject = f"ALP Temps {today}"
-    newmail.To = ("Rail Mech Tech Services <RailMechTechServices@njtransit.com>; "
-                  "Rail Mech QA/QC <RailMechQA_QC@njtransit.com>; "
-                  "Rail Weekend Duty Officer <RailWeekendDutyOfficer@njtransit.com>; "
-                  "Rail Mech MMC Locomotive Shop Foremen <Rail_Mech_MMC_Locomotive_Shop_Foremen@njtransit.com>; "
-                  "Rail Mechanical Desk <RailMechanicalDesk@njtransit.com>; "
-                  "Rail Mech Dover Yard Group <Rail_Mech_Dover_Yard_Group@njtransit.com>; "
-                  "Rail Mech Gladstone Yard Group <Rail_Mech_Gladstone_Yard_Group@njtransit.com>; "
-                  "Rail Mech Great Notch Yard Group <Rail_Mech_Great_Notch_Yard_Group@njtransit.com>; "
-                  "Rail Mech Hoboken Yard Group <Rail_Mech_Hoboken_Yard_Group@njtransit.com>; "
-                  "Rail Mech County Yard Group <Rail_Mech_County_Yard_Group@njtransit.com>; "
-                  "Rail Mech Long Branch Yard Group <Rail_Mech_Long_Branch_Yard_Group@njtransit.com>; "
-                  "Rail Mech Morrisville Yard Group <Rail_Mech_Morrisville_Yard_Group@njtransit.com>; "
-                  "Rail Mech Port Morris Yard Group <Rail_Mech_Port_Morris_Yard_Group@njtransit.com>")
-
-    newmail.CC = ("DeGennaro, David P.   (CROPDPD) <DDegennaro@njtransit.com>; "
-                  "Rogust, Daniel G.     (CROPDGR) <DRogust@njtransit.com>; "
-                  "Breen, Robert L.      (CROPRLB) <RBreen@njtransit.com>; "
-                  "Kunchandy, George M.  (CROPGMK) <GKunchandy@njtransit.com>; "
-                  "Panza, Adam J.        (CROPAJP) <APanza@njtransit.com>; "
-                  "Ortland, Milena M.    (CROPMMO) <MOrtland@njtransit.com>; "
-                  "Patel, Yogesh R.      (CROPYRP) <YPatel@njtransit.com>")
-
-    newmail.Body = (f"All, "
-                    f"\nAttached is the ALP Converter temperature report for {todaye}."
-                    f"The current outside temperature is {temp}."
-                    f"All converter readings are within normal operating limits."
-                    f"\nRegards,")
-
-    attach = f"F:\\42 ALPs Converter Temp\\NJTDB Temps\\{year}\\ALP Temps {today}.xlsx"
-
-    newmail.Attachments.Add(attach)
-    newmail.Display()
-    """
+    status.config(text="Generating Email...")
+    send_email()
 
 #--------------------------------------------------------------------------------------------------------------------------------
 # create the main window
@@ -319,3 +370,6 @@ pb.grid(row = 3, column = 0, padx = 10, pady = 10)
 
 #open window!
 window.mainloop()
+
+
+# "App works faster than todd gets his monthly report done" -The Intern, 2026
