@@ -4,7 +4,7 @@ from tkinter import *
 from tkinter.ttk import *
 
 #email sending
-import win32com.client as win32
+import urllib.parse
 
 #reading the HTML
 from bs4 import BeautifulSoup
@@ -264,72 +264,113 @@ def generate_excel_file():
 
     return all_concern_locos
 
+#formatting the list of concerned locos
+def format_concerns(all_concern_locos):
+    flat = []
+    for group in all_concern_locos:
+        flat.extend(group) if isinstance(group, list) else flat.append(group)
+    return ", ".join(str(loco) for loco in flat) if flat else "(none)"
+
+#building message to be sent depending on if theres are concerning locos or not
+def build_message(all_concern_locos, today, temp):
+    if all_concern_locos:
+        body = (f"All,\n\n"
+                f"Attached is the ALP converter temperature report for {today}. "
+                f"The current outside temperature is {temp}\u00b0F. The unit(s) listed "
+                f"below have converter temperatures of 125\u00b0F or higher and require "
+                f"immediate attention. All other converter readings are within normal "
+                f"operating limits.\n\n"
+                f"    {format_concerns(all_concern_locos)}\n\n"
+                f"Regards,")
+    else:
+        body = (f"All,\n\n"
+                f"Attached is the ALP converter temperature report for {today}. "
+                f"The current outside temperature is {temp}\u00b0F. All converter "
+                f"readings are within normal operating limits.\n\n"
+                f"Regards,")
+    return f"ALP Temps {today}", body
+
 #Send the email report
 def send_email():
-
     all_concern_locos = generate_excel_file()
     today = datetime.now().strftime("%m.%d.%y %H%M %p")
     year = datetime.now().strftime("%Y")
     temp = get_outside_temp()
+    filepath = f"F:\\42 ALPs Converter Temp\\NJTDB Temps\\{year}\\ALP TEMPS {today}.xlsx"
 
-    status.config(text="Please wait...")
+    to_line = ("RailMechTechServices@njtransit.com; "
+               "RailMechQA_QC@njtransit.com; "
+               "RailWeekendDutyOfficer@njtransit.com; "
+               "Rail_Mech_MMC_Locomotive_Shop_Foremen@njtransit.com; "
+               "RailMechanicalDesk@njtransit.com; "
+               "Rail_Mech_Dover_Yard_Group@njtransit.com; "
+               "Rail_Mech_Gladstone_Yard_Group@njtransit.com; "
+               "Rail_Mech_Great_Notch_Yard_Group@njtransit.com; "
+               "Rail_Mech_Hoboken_Yard_Group@njtransit.com; "
+               "Rail_Mech_County_Yard_Group@njtransit.com; "
+               "Rail_Mech_Long_Branch_Yard_Group@njtransit.com; "
+               "Rail_Mech_Morrisville_Yard_Group@njtransit.com; "
+               "Rail_Mech_Port_Morris_Yard_Group@njtransit.com; "
+               "Rail_Mech_Raritan_Yard_Group@njtransit.com; "
+               "Rail_Mech_Atlantic_City_Yard_Group@njtransit.com; "
+               "Rail_Mech_Suffern_Yard_Group@njtransit.com; "
+               "Rail_Mech_Spring_Valley_Yard_Group@njtransit.com; "
+               "Rail_Mech_New_York-SSYD_Yard_Group@njtransit.com; "
+               "Rail_Mech_Port_Jervis_Yard_Group@njtransit.com; "
+               "Rail_Mech_Bay_Head_Yard_Group@njtransit.com")
 
-    if all_concern_locos:
+    cc_line = ("DDegennaro@njtransit.com; DRogust@njtransit.com; "
+               "RBreen@njtransit.com; GKunchandy@njtransit.com; "
+               "APanza@njtransit.com; MOrtland@njtransit.com; "
+               "YPatel@njtransit.com")
 
-        outlook = win32.Dispatch("outlook.application")
-        mail = outlook.CreateItem(0)
-        mail.To = ("RailMechTechServices@njtransit.com; "
-                   "RailMechQA_QC@njtransit.com; "
-                   "RailWeekendDutyOfficer@njtransit.com; "
-                   "Rail_Mech_MMC_Locomotive_Shop_Foremen@njtransit.com; "
-                   "RailMechanicalDesk@njtransit.com; "
-                   "Rail_Mech_Dover_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Gladstone_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Great_Notch_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Hoboken_Yard_Group@njtransit.com; "
-                   "Rail_Mech_County_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Long_Branch_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Morrisville_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Port_Morris_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Raritan_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Atlantic_City_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Suffern_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Spring_Valley_Yard_Group@njtransit.com; "
-                   "Rail_Mech_New_York-SSYD_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Port_Jervis_Yard_Group@njtransit.com; "
-                   "Rail_Mech_Bay_Head_Yard_Group@njtransit.com")
+    subject, body = build_message(all_concern_locos, today, temp)
+    status.config(text="Review the email")
 
-        mail.Cc = ("DDegennaro@njtransit.com; "
-                   "DRogust@njtransit.com; "
-                   "RBreen@njtransit.com; "
-                   "GKunchandy@njtransit.com; "
-                   "APanza@njtransit.com; "
-                   "MOrtland@njtransit.com; "
-                   "YPatel@njtransit.com")
+    win = Toplevel(window)
+    win.title("Review before sending")
+    win.geometry("680x520")
 
-        mail.Subject = f"ALP Temps {today}"
+    display = Text(win, wrap="word")
+    display.insert("1.0",
+                   f"To:      {to_line}\n\n"
+                   f"Cc:      {cc_line}\n\n"
+                   f"Subject: {subject}\n"
+                   f"Attach:  {os.path.basename(filepath)}\n"
+                   f"{'-' * 80}\n{body}")
+    display.config(state=DISABLED)
+    display.pack(fill=BOTH, expand=True, padx=8, pady=8)
 
-        mail.Body = (f"All, \n\nAttached is the ALP converter temperature report for {today} "
-                     f"The current outside temperature is {temp}°F. The unit(s) listed below have converter temperatures of 125°F or higher "
-                     f"and required immediate attention. All other converter readings are within normal operating limits."
-                     f"\n {all_concern_locos}"
-                     f"\n\n Regards,")
-        filepath = f"F:\\42 ALPs Converter Temp\\NJTDB Temps\\{year}\\ALP TEMPS {today}.xlsx"
-        mail.Attachments.Add(filepath)
+    def copy(value, label):
+        window.clipboard_clear()
+        window.clipboard_append(value)
+        window.update()
+        status.config(text=f"{label} copied")
 
-    else:
+    def open_draft():
+        copy(body, "Body")
+        link = ("mailto:" + urllib.parse.quote(to_line) +
+                "?cc=" + urllib.parse.quote(cc_line) +
+                "&subject=" + urllib.parse.quote(subject))
+        os.startfile(link)
+        os.startfile(os.path.dirname(filepath))
+        status.config(text="Draft open - paste body, drag in the file")
+        win.destroy()
 
-        outlook = win32.Dispatch("outlook.application")
-        mail = outlook.CreateItem(0)
-        mail.To = "genaog04@gmail.com"
-        mail.Subject = "Test Email"
-        mail.Body = (f"All, \nAttached is the ALP converter temperature report for {today} "
-                     f"The current outside temperature is {temp}°F. All converter readings are within normal operating limits."
-                     f"\n Regards,")
-        filepath = f"F:\\42 ALPs Converter Temp\\NJTDB Temps\\{year}\\ALP TEMPS {today}.xlsx"
-        mail.Attachments.Add(filepath)
-
-    mail.Display()
+    row = Frame(win)
+    row.pack(pady=6)
+    Button(row, text="Open draft (body copied)",
+           command=open_draft).pack(side=LEFT, padx=4)
+    Button(row, text="Copy To",
+           command=lambda: copy(to_line, "To")).pack(side=LEFT, padx=4)
+    Button(row, text="Copy Cc",
+           command=lambda: copy(cc_line, "Cc")).pack(side=LEFT, padx=4)
+    Button(row, text="Copy body",
+           command=lambda: copy(body, "Body")).pack(side=LEFT, padx=4)
+    Button(row, text="Copy all",
+           command=lambda: copy(f"{to_line}\n\n{cc_line}\n\n{subject}\n\n{body}",
+                                "Everything")).pack(side=LEFT, padx=4)
+    Button(row, text="Cancel", command=win.destroy).pack(side=LEFT, padx=4)
 
 
 #--------------------------------------------------------------------------------------------------------------------------------
@@ -337,13 +378,14 @@ def send_email():
 def button1commands():
 
     status.config(text="Generating..")
-    threading.Thread(target=generate_excel_file).start()
+    thread  = threading.Thread(target=generate_excel_file).start()
 
 
 def button2commands():
 
     status.config(text="Generating Email...")
-    send_email()
+    thread = threading.Thread(target=send_email).start()
+
 
 #--------------------------------------------------------------------------------------------------------------------------------
 # create the main window
@@ -372,4 +414,3 @@ pb.grid(row = 3, column = 0, padx = 10, pady = 10)
 window.mainloop()
 
 
-# "App works faster than todd gets his monthly report done" -The Intern, 2026
