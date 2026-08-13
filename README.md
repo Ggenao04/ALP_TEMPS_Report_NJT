@@ -48,6 +48,6 @@ The app appears to freeze when generating the email report. Originally I had the
 
   *Final Thoughts,*
 
-  Feel free to contact me for any bugs that come up in the current code and I could take a look. 
+  *Feel free to contact me for any bugs that come up in the current code and I could take a look. This was a fun project to work on*
   
   
